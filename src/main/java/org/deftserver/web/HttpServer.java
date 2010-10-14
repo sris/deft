@@ -1,5 +1,7 @@
 package org.deftserver.web;
 
+import org.deftserver.ioloop.IOLoop;
+
 
 public class HttpServer {
 	
@@ -7,15 +9,16 @@ public class HttpServer {
 	private static final int MAX_PORT_NUMBER = 65535;
 
 	private final Application application;
-	private final IOLoop ioLoop;
+	//private final IOLoop ioLoop;
 	
 	public HttpServer(Application app) {
 		application = app;
-		ioLoop = new IOLoop(application);
+//		ioLoop = new IOLoop(application);
 	}
 
 	public IOLoop getIOLoop() {
-		return ioLoop;
+	//	return ioLoop;
+		return null;
 	}
 
 	/**
@@ -27,7 +30,7 @@ public class HttpServer {
 					MIN_PORT_NUMBER + ", " + MAX_PORT_NUMBER + ")");
 		}
 		
-		ioLoop.listen(port);
+//		ioLoop.listen(port);
 		return this;
 	}
 
