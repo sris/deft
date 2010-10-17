@@ -10,6 +10,9 @@ import java.util.Iterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// TODO: Add support for timeout
+// TODO: Add support for arbitrary callbacks/next tick style
+// TODO: Investigate nio pipes vs. wakeup
 public class IOLoop {
 	
 	private final static Logger logger = LoggerFactory.getLogger(IOLoop.class);
@@ -54,10 +57,21 @@ public class IOLoop {
 	public void addHandler(SelectableChannel channel, EventHandler handler, int ops) {
 		logger.info("Adding handler for {}", channel);
 		try {
-			channel.register(selector, ops);
-			channel.keyFor(selector).attach(handler);
+			channel.register(selector, ops, handler);
 		} catch (ClosedChannelException e) {
 			logger.error("Could not register selector: {}", e);
 		}
+	}
+	
+	public void updateHandler(SelectableChannel channel, int ops) {
+		logger.info("Updateing handler for {} with ops {}", channel, ops);
+		channel.keyFor(selector).interestOps(ops);
+	}
+
+	public void removeHandler(SelectableChannel channel) {
+		logger.info("Canceling handler for {}", channel);
+		SelectionKey key = channel.keyFor(selector);
+		key.attach(null);
+		key.cancel();
 	}
 }

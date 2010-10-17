@@ -1,5 +1,9 @@
 package org.deftserver.example.echo;
 
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
+
 import org.deftserver.ioloop.IOStream;
 import org.deftserver.web.AsyncCallback;
 import org.slf4j.Logger;
@@ -11,15 +15,21 @@ public class LineConnection implements AsyncCallback<String> {
 	
 	private IOStream stream;
 	private LineHandler handler;
-	enum State {
-	    WAITING 
-	};
-	private State state = State.WAITING;
+	private final String delimiter = "\r\n";
 	
-	public LineConnection(IOStream stream, LineHandler handler) {
+	public LineConnection(IOStream stream, LineHandler handler) throws IOException {
 		this.stream = stream;
 		this.handler = handler;
-		this.stream.readUntil("\r\n", this);
+		this.stream.readUntil(delimiter.getBytes(), this);
+	}
+	
+	public void write(String data) {
+		// TODO: Check if closed?
+		try {
+			this.stream.write(ByteBuffer.wrap(data.getBytes("UTF-8")));
+		} catch (UnsupportedEncodingException e) {
+			logger.error("Failed to encode line: {} {}", data, e);
+		}
 	}
 	
 	@Override
@@ -30,6 +40,6 @@ public class LineConnection implements AsyncCallback<String> {
 	
 	@Override
 	public void onSuccess(String result) {
-		handler.handleLine(new LineRequest(this, result));
+		handler.handleLine(new LineRequest(this, result.substring(0, result.indexOf(delimiter))));
 	}
 }

@@ -21,6 +21,7 @@ public class LineTest implements LineHandler {
 	
 	@Override
 	public void handleLine(LineRequest request) {
-		logger.info("BGTD: {}", request.getLine());
+		logger.info(">{}#", request.getLine());
+		request.getConnection().write("<" + request.getLine());
 	}
 }
