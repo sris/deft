@@ -1,5 +1,6 @@
 package org.deftserver.buffer;
 
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -90,6 +91,23 @@ public class DynamicByteBufferTokenizer implements Iterator<ByteBuffer> {
 		hasNext = false;
 	}
 	
+	public ByteBuffer slice(int num) {
+		if (num > size()) {
+			throw new BufferUnderflowException();
+		}
+		return consume(num);
+	}
+	
+	public int size() {
+		return count;
+	}
+	
+	private ByteBuffer consume(int num) {
+		ByteBuffer result = ByteBuffer.wrap(Arrays.copyOfRange(value, 0, num));
+		compact(num);
+		return result;
+	}
+	
 	@Override
 	public boolean hasNext() {
 		if (searchPos <= count - delimiterLenght && 
@@ -109,9 +127,7 @@ public class DynamicByteBufferTokenizer implements Iterator<ByteBuffer> {
 		if (!hasNext) {
 			throw new NoSuchElementException();
 		}
-		ByteBuffer result = ByteBuffer.wrap(Arrays.copyOfRange(value, 0, searchPos + delimiterLenght));
-		compact(searchPos + delimiterLenght);
-		return result;
+		return consume(searchPos + delimiterLenght);
 	}
 
 	@Override
