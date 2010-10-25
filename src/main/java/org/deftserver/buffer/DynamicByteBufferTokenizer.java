@@ -13,8 +13,9 @@ public class DynamicByteBufferTokenizer implements Iterator<ByteBuffer> {
 	
 	private final static Logger logger = LoggerFactory.getLogger(DynamicByteBufferTokenizer.class);
 	
+	private final byte[] EMPTY_DELIMITER = {};
 	private byte[] value;
-	private byte[] delimiter = {};
+	private byte[] delimiter = EMPTY_DELIMITER;
 	
 	private int delimiterLenght;
 	private int searchPos = 0;
@@ -28,10 +29,16 @@ public class DynamicByteBufferTokenizer implements Iterator<ByteBuffer> {
 		setDelimiter(delimiter);
 	}
 
+	public DynamicByteBufferTokenizer(int capacity) {
+		value = new byte[capacity];
+	}
+
 	public void setDelimiter(byte[] delimiter) {
 		if (!this.delimiter.equals(delimiter)) {
 			this.delimiter = delimiter;
 			this.delimiterLenght = delimiter.length;
+			this.searchPos = 0;
+			this.hasNext = false;
 		}
 	}
 	
@@ -108,8 +115,15 @@ public class DynamicByteBufferTokenizer implements Iterator<ByteBuffer> {
 		return result;
 	}
 	
+	private void checkDelimiter() {
+		if (this.delimiter.equals(EMPTY_DELIMITER)) {
+			throw new NoSuchElementException();
+		}
+	}
+	
 	@Override
 	public boolean hasNext() {
+		checkDelimiter();
 		if (searchPos <= count - delimiterLenght && 
 				search() >= 0) {
 			hasNext = true;
@@ -120,6 +134,7 @@ public class DynamicByteBufferTokenizer implements Iterator<ByteBuffer> {
 	// returns flipped buffer (ready to read)
 	@Override
 	public ByteBuffer next() {
+		checkDelimiter();
 		if (searchPos <= count - delimiterLenght &&
 				!hasNext) {
 			hasNext();
