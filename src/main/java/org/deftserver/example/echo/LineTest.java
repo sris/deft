@@ -22,6 +22,6 @@ public class LineTest implements LineHandler {
 	@Override
 	public void handleLine(LineRequest request) {
 		logger.info(">{}#", request.getLine());
-		request.getConnection().write("<" + request.getLine());
+		request.getConnection().write("< Deft LineServer: " + request.getLine() + "\n");
 	}
 }

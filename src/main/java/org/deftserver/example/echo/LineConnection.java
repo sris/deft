@@ -9,7 +9,7 @@ import org.deftserver.web.AsyncCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class LineConnection implements AsyncCallback<String> {
+public class LineConnection implements AsyncCallback<byte[]> {
 	
 	private final static Logger logger = LoggerFactory.getLogger(LineConnection.class);
 	
@@ -17,10 +17,10 @@ public class LineConnection implements AsyncCallback<String> {
 	private LineHandler handler;
 	private final String delimiter = "\r\n";
 	
-	public LineConnection(IOStream stream, LineHandler handler) throws IOException {
+	public LineConnection(IOStream stream, LineHandler handler) {
 		this.stream = stream;
 		this.handler = handler;
-		this.stream.readUntil(delimiter.getBytes(), this);
+		readLine();
 	}
 	
 	public void write(String data) {
@@ -32,6 +32,15 @@ public class LineConnection implements AsyncCallback<String> {
 		}
 	}
 	
+	private void readLine() {
+		try {
+			this.stream.readUntil(delimiter.getBytes(), this);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
 	@Override
 	public void onFailure(Throwable caught) {
 		// TODO Auto-generated method stub
@@ -39,7 +48,9 @@ public class LineConnection implements AsyncCallback<String> {
 	}
 	
 	@Override
-	public void onSuccess(String result) {
-		handler.handleLine(new LineRequest(this, result.substring(0, result.indexOf(delimiter))));
+	public void onSuccess(byte[] result) {
+		String data = new String(result);
+		handler.handleLine(new LineRequest(this, data.substring(0, data.indexOf(delimiter))));
+		readLine();
 	}
 }
