@@ -5,6 +5,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 
+import org.deftserver.buffer.DynamicByteBufferTokenizer;
 import org.deftserver.web.AsyncCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,14 +23,13 @@ public class IOStream implements EventHandler {
 
 	private ByteBuffer readBuffer;
 	private ByteBuffer writeBuffer;
+	private final int chunkSize = 1500;
 	
-	// TODO: Make delimiter/tokenizer purley byte oriented.
-	// TODO: Investigate proper method for byte stream buffering.
-	private StringBuilder readBytes;
-	private String readDelimiter;
-	private int lastLoc;
+	private DynamicByteBufferTokenizer data;
+	private boolean readingUntil = false;
+	private int readingBytes = 0;
 	
-	private AsyncCallback<String> callback;
+	private AsyncCallback<byte[]> callback;
 	private int ioOps;
 	
 	public IOStream(SocketChannel channel) {
@@ -41,27 +41,21 @@ public class IOStream implements EventHandler {
 			e.printStackTrace();
 		}
 		this.ioloop = IOLoop.getInstance();
-		// TODO: Use a proper buffer size
-		this.readBuffer = ByteBuffer.allocate(10);
-		this.readBytes = new StringBuilder();
-		this.readDelimiter = null;
-		this.lastLoc = 0;
+		this.readBuffer = ByteBuffer.allocate(chunkSize);
+		this.data = new DynamicByteBufferTokenizer(chunkSize);
 		this.ioOps = SelectionKey.OP_READ;
 		this.ioloop.addHandler(this.channel, this, SelectionKey.OP_READ);
 	}
 
 	// TODO: Should this return byte[] or ByteBuffer. cmp. write()
-	public void readUntil(byte[] delimiter, AsyncCallback<String> callback) throws IOException {
-		readDelimiter = new String(delimiter);
-		int loc = readBytes.indexOf(readDelimiter);
-		if (loc >= 0) {
-			callback.onSuccess(consume(loc + readDelimiter.length()));
+	public void readUntil(byte[] delimiter, AsyncCallback<byte[]> callback) throws IOException {
+		this.data.setDelimiter(delimiter);
+		if (this.data.hasNext()) {
+			callback.onSuccess(this.data.next().array());
 			return;
 		}
-		// TODO: Need to check if socket closed?
 		checkClosed();
-		
-		lastLoc = readBytes.length();
+		this.readingUntil = true;
 		this.callback = callback;
 		addOps(SelectionKey.OP_READ);
 	}
@@ -86,6 +80,7 @@ public class IOStream implements EventHandler {
 	public void write(ByteBuffer data) {
 		// TODO: Need callback?
 		// TODO: Need to check if socket closed?
+		// TODO: Buffer written data?
 		writeBuffer = data;
 		addOps(SelectionKey.OP_WRITE);
 	}
@@ -127,7 +122,6 @@ public class IOStream implements EventHandler {
 	private void handleRead() {
 		// TODO: Investigate if it's a problem that data will be read even though nobody wants it
 		//       Will it ever happen. i.e. neither read_x is invoked but stream is open.
-		
 		try {
 			readBuffer.clear();
 			int bytesRead = channel.read(readBuffer);
@@ -138,17 +132,18 @@ public class IOStream implements EventHandler {
 			}
 			
 			readBuffer.flip();
-			byte[] data = new byte[readBuffer.remaining()];
-			readBuffer.get(data);
-			readBytes.append(new String(data));
+			data.append(readBuffer);
+			
 			if (isReadingUntil()) {
 				searchForDelimiter();
+			} else if (isReadingBytes()) {
+				;
 			}
 		} catch (IOException e) {
 			logger.debug("Error on channel {}: {}", channel, e);
 		}
 	}
-	
+
 	public void handleWrite() {
 		// TODO: Handle not being able to write entire buffer.
 		try {
@@ -176,25 +171,17 @@ public class IOStream implements EventHandler {
 	}
 	
 	private void searchForDelimiter() {
-		int loc = readBytes.indexOf(readDelimiter, lastLoc);
-		if (loc >= 0) {
-			int delimiterLength = consumeDelimiter();
-			consumeCallback().onSuccess(consume(loc + delimiterLength));
+		if (data.hasNext()) {
+			consumeCallback().onSuccess(data.next().array());
 		}
-		lastLoc = readBytes.length();		
 	}
 	
-	private AsyncCallback<String> consumeCallback() {
-		AsyncCallback<String> cb = callback;
+	private AsyncCallback<byte[]> consumeCallback() {
+		AsyncCallback<byte[]> cb = callback;
 		callback = null;
+		readingUntil = false;
+		readingBytes = 0;
 		return cb;
-	}
-	
-	private int consumeDelimiter() {
-		int delimiterLength = readDelimiter.length();
-		readDelimiter = null;
-		lastLoc = 0;
-		return delimiterLength;
 	}
 	
 	private boolean isReading() {
@@ -206,7 +193,11 @@ public class IOStream implements EventHandler {
 	}
 	
 	private boolean isReadingUntil() {
-		return readDelimiter != null;
+		return readingUntil;
+	}
+	
+	private boolean isReadingBytes() {
+		return readingBytes > 0;
 	}
 	
 	public void close() {
@@ -228,11 +219,5 @@ public class IOStream implements EventHandler {
 		if (isClosed()) {
 			throw new IOException();
 		}
-	}
-	
-	private String consume(int loc) {
-		String result = readBytes.substring(0, loc);
-		readBytes.delete(0, loc);
-		return result;
 	}
 }
